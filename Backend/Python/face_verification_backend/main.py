@@ -6,15 +6,13 @@ from face_service import FaceVerificationService
 from exceptions import NoFaceDetectedException, ImageProcessingException
 import warnings
 
-# Suppress warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 app = FastAPI(title="Face Verification Service", version="1.0.0")
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure as needed
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,7 +29,6 @@ async def verify_faces(
     Returns detailed verification results with confidence scores.
     """
     try:
-        # Validate content types
         allowed_types = {"image/jpeg", "image/png", "image/jpg", "image/webp"}
         
         if image1.content_type not in allowed_types:
@@ -46,11 +43,9 @@ async def verify_faces(
                 detail="Invalid file type for image2. Allowed: JPEG, PNG, WebP"
             )
         
-        # Read image data
         image1_bytes = await image1.read()
         image2_bytes = await image2.read()
         
-        # Perform verification
         result = await face_service.verify_faces(image1_bytes, image2_bytes)
         
         return VerificationResponse(**result)

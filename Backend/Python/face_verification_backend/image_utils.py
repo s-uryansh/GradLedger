@@ -9,23 +9,19 @@ from exceptions import ImageProcessingException
 def validate_and_preprocess_image(image_bytes: bytes) -> np.ndarray:
     """Validate and preprocess image for face recognition"""
     try:
-        # Validate file size
         if len(image_bytes) > config.MAX_FILE_SIZE:
             raise ImageProcessingException("File size exceeds maximum allowed (10MB)")
         
-        # Load and validate image
         try:
             pil_image = Image.open(BytesIO(image_bytes))
-            pil_image.verify()  # Verify it's a valid image
+            pil_image.verify() 
             
-            # Reload image (verify() closes the file)
             pil_image = Image.open(BytesIO(image_bytes))
             image_array = np.array(pil_image)
         except Exception:
             raise ImageProcessingException("Invalid image format or corrupted file")
         
-        # Convert to RGB if needed
-        if image_array.ndim == 2:  # Grayscale
+        if image_array.ndim == 2:  
             image_array = cv2.cvtColor(image_array, cv2.COLOR_GRAY2RGB)
         elif len(image_array.shape) == 3 and image_array.shape[2] == 4:  # RGBA
             image_array = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
