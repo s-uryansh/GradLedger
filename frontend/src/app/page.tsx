@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import ColorBends from '@/components/BackgroundAnimations/ColorBends';
 import Navbar from '@/components/UI/Navbar';
 import AuthDialog from '@/components/Auth/AuthDialog';
+import ProfileDialog from '@/components/Auth/ProfileDialog';
 
 const MagicBento = dynamic(() => import('@/components/BackgroundAnimations/MagicBento'), { ssr: false });
 
@@ -22,6 +23,21 @@ const Reveal = ({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
 
 export default function LandingPage() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
+        const data = await res.json();
+        if (data.user) setUser(data.user);
+      } catch (err) {
+        console.error('Failed to fetch session:', err);
+      }
+    };
+    fetchUser();
+  }, []);
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden text-white">
@@ -42,19 +58,21 @@ export default function LandingPage() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.10) 70%, rgba(0,0,0,0.15) 100%)'
+              'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.10) 70%, rgba(0,0,0,0.15) 100%)',
           }}
         />
       </div>
 
       {/* === Navbar === */}
       <div className="relative z-40">
-        <Navbar onLoginClick={() => setIsAuthOpen(true)} />
+        <Navbar
+          user={user}
+          onLoginClick={() => setIsAuthOpen(true)}
+        />
       </div>
 
-      {/* === Main Scroll Sections === */}
+      {/* === Main === */}
       <main className="relative z-20">
-        {/* Hero Section */}
         <section className="min-h-screen flex items-center justify-center px-6 md:px-16">
           <div className="max-w-6xl w-full grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div className="relative">
@@ -66,15 +84,15 @@ export default function LandingPage() {
                   </span>
                 </h1>
                 <p className="text-gray-200 max-w-xl">
-                  A decentralized mentorship & resource platform that pairs verified alumni with students —
-                  trust, transparency, and fair rewards, built on-chain.
+                  A decentralized mentorship & resource platform that pairs verified alumni with students — trust,
+                  transparency, and fair rewards, built on-chain.
                 </p>
                 <div className="mt-6 flex gap-3">
                   <button
-                    onClick={() => setIsAuthOpen(true)}
+                   onClick={() => (user ? window.location.href = '/profile' : setIsAuthOpen(true))}
                     className="px-5 py-3 bg-gradient-to-r from-indigo-700 to-purple-600 rounded-lg font-semibold shadow"
                   >
-                    Get Started
+                    {user ? 'View Profile' : 'Get Started'}
                   </button>
                   <a
                     href="#features"
@@ -85,11 +103,7 @@ export default function LandingPage() {
                 </div>
               </Reveal>
             </div>
-
-            {/* <div className="w-full h-[420px] md:h-[520px] rounded-2xl overflow-hidden bg-white/5 backdrop-blur-md border border-white/10">
-              <div className="w-full h-full bg-black/20 animate-pulse rounded-2xl" /> */}
-            </div>
-          {/* </div> */}
+          </div>
         </section>
 
         {/* Features */}
@@ -99,7 +113,7 @@ export default function LandingPage() {
               <div className="rounded-2xl p-6 bg-white/5 backdrop-blur-md border border-white/10">
                 <h3 className="text-2xl font-semibold mb-2">Why GradLedger</h3>
                 <p className="text-gray-200">
-                  Verified mentors, on-chain reputation - less noise, more trust. Ideal for
+                  Verified mentors, on-chain reputation, less noise, more trust. Ideal for
                   students and alumni who value provenance.
                 </p>
               </div>
@@ -118,10 +132,9 @@ export default function LandingPage() {
 
             <Reveal delay={0.16}>
               <div className="rounded-2xl p-6 bg-white/5 backdrop-blur-md border border-white/10">
-                <h3 className="text-2xl font-semibold mb-2">On-chain / Off-chain</h3>
-                <p className="text-gray-200 text-sm">
-                  Contracts store verification, sessions, reputation, and content metadata. Heavy assets and
-                  face verification live off-chain.
+                <h3 className="text-2xl font-semibold mb-2">Get Started</h3>
+                <p>
+                  To get started, click profile and begin verification. Once verified, you will unlock all platform features.
                 </p>
               </div>
             </Reveal>
@@ -155,7 +168,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* CTA */}
         <section className="py-24 px-6 md:px-16">
           <div className="max-w-4xl mx-auto text-center">
             <Reveal>
@@ -165,10 +177,10 @@ export default function LandingPage() {
                 university.
               </p>
               <button
-                onClick={() => setIsAuthOpen(true)}
+                onClick={() => (user ? window.location.href = '/profile' : setIsAuthOpen(true))}
                 className="px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-700 to-purple-600 font-semibold"
               >
-                Start Verification
+                {user ? 'Go to Profile' : 'Start Verification'}
               </button>
             </Reveal>
           </div>
@@ -183,7 +195,17 @@ export default function LandingPage() {
       </main>
 
       {/* Auth Dialog */}
-      {isAuthOpen && <AuthDialog isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />}
+      {isAuthOpen && (
+        <AuthDialog
+          onClose={() => setIsAuthOpen(false)}
+          onAuthSuccess={(userData) => setUser(userData)}
+        />
+      )}
+
+      {/* Profile Dialog */}
+      {isProfileOpen && user && (
+        <ProfileDialog user={user} onClose={() => setIsProfileOpen(false)} />
+      )}
     </div>
   );
 }
