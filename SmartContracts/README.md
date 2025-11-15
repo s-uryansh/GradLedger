@@ -36,7 +36,7 @@ npx hardhat test
 ### 4. Deploy locally
 ```bash
 npx hardhat node
-npx hardhat run scripts/deploy.js --network localhost
+npx hardhat run scripts/deployAll.js --network localhost
 ```
 
 **Suggested deployment order:**  

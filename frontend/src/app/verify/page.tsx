@@ -6,6 +6,7 @@ import ColorBends from '@/components/BackgroundAnimations/ColorBends';
 import Navbar from '@/components/UI/Navbar';
 import { verifyFaces } from '@/lib/pythonAPI';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 
 export default function VerifyPage() {
   const [image1, setImage1] = useState<File | null>(null);
@@ -13,6 +14,7 @@ export default function VerifyPage() {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [loadingUser, setLoadingUser] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -20,64 +22,106 @@ export default function VerifyPage() {
       try {
         const res = await fetch('/api/auth/me', { credentials: 'include' });
         const data = await res.json();
-        if (data?.user) setUser(data.user);
+
+        if (!data.user) {
+          router.push('/');
+          return;
+        }
+
+        if (!data.user.mailVerified) {
+          toast.error('Please verify your email first.');
+          router.push('/profile');
+          return;
+        }
+
+        setUser(data.user);
       } catch (err) {
         console.error('Failed to fetch user:', err);
+        router.push('/');
+      } finally {
+        setLoadingUser(false);
       }
     };
     fetchUser();
-  }, []);
+  }, [router]);
+
+  if (loadingUser)
+    return (
+      <div className="flex items-center justify-center min-h-screen text-gray-300 text-lg">
+        Checking verification status...
+      </div>
+    );
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!image1 || !image2 || result?.match === false) return; // block mismatch retries
+    if (!image1 || !image2) return;
 
     setLoading(true);
     setResult(null);
 
     try {
+      const selfieBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(image1);
+      });
+      // Verify face match
       const res = await verifyFaces(image1, image2);
       const confidence = Math.round(res.confidence * 100) / 100;
       const isMatch = res.match && confidence >= 0.1;
 
-      const normalized = {
-        ...res,
-        confidence,
+      setResult({
         match: isMatch,
+        confidence,
         message: !isMatch
           ? 'No match detected. Confidence too low.'
           : confidence >= 0.7
           ? 'High confidence match — verified successfully.'
-          : confidence >= 0.4
-          ? 'Moderate confidence match — likely same person.'
-          : 'Low confidence match — proceed with caution.',
-      };
+          : 'Moderate confidence match.',
+      });
 
-      setResult(normalized);
+      if (!isMatch) {
+        toast.error('Face mismatch. Please try again.');
+        return;
+      }
 
-      if (isMatch && user?.email) {
-        const res2 = await fetch('/api/verify/face', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            email: user.email,
-            result: { match: isMatch, confidence },
-          }),
-        });
+      // Upload ID and extract data (crop + OCR)
+      const formData = new FormData();
+      formData.append('file', image2);
+      formData.append('email', user.email);
 
-        const data = await res2.json();
-        if (data.success) {
-          setTimeout(() => router.push('/'), 1500);
-        }
+      const uploadRes = await fetch('/api/upload/id-face', {
+        method: 'POST',
+        body: formData,
+      });
+      const uploadData = await uploadRes.json();
+
+      const res2 = await fetch('/api/verify/face', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: user.email,
+          result: { match: isMatch, confidence },
+          profileImage: uploadData.url,
+          selfieImage: selfieBase64,
+          rollNumber: uploadData.rollNumber,
+          program: uploadData.program,
+          major: uploadData.major,
+        }),
+      });
+
+      const data = await res2.json();
+      if (data.success) {
+        toast.success('Verification completed successfully!');
+        setTimeout(() => router.push('/'), 1500);
+      } else {
+        toast.error('Failed to update profile.');
       }
     } catch (err) {
       console.error('Verification error:', err);
-      setResult({
-        match: false,
-        confidence: 0,
-        message: 'Error verifying faces. Please try again.',
-      });
+      toast.error('Error verifying faces. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -88,12 +132,6 @@ export default function VerifyPage() {
     setImage2(null);
     setResult(null);
   };
-
-  const verifyDisabled =
-    loading ||
-    !image1 ||
-    !image2 ||
-    (result && result.match === false); // block if mismatch
 
   return (
     <div className="relative min-h-screen w-full text-white flex flex-col items-center justify-center">
@@ -108,13 +146,6 @@ export default function VerifyPage() {
           mouseInfluence={1}
           parallax={0.5}
           noise={0.1}
-        />
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.10) 70%, rgba(0,0,0,0.15) 100%)',
-          }}
         />
       </div>
 
@@ -131,34 +162,24 @@ export default function VerifyPage() {
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Capture Selfie */}
+          {/* Selfie */}
           <div className="flex flex-col items-center space-y-3">
             <p className="text-gray-300">Capture Live Selfie</p>
             {!image1 ? (
               <>
-                <video
-                  id="video"
-                  autoPlay
-                  playsInline
-                  className="rounded-lg border border-white/10 shadow-md w-64 h-48 object-cover"
-                />
+                <video id="video" autoPlay playsInline className="rounded-lg border border-white/10 w-64 h-48" />
                 <div className="flex gap-3 mt-2">
                   <button
                     type="button"
                     onClick={async () => {
-                      try {
-                        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                        const video = document.getElementById('video') as HTMLVideoElement;
-                        if (video) video.srcObject = stream;
-                      } catch (err) {
-                        console.error('Camera access error:', err);
-                      }
+                      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                      const video = document.getElementById('video') as HTMLVideoElement;
+                      if (video) video.srcObject = stream;
                     }}
-                    className="px-4 py-2 bg-gradient-to-r from-indigo-700 to-purple-600 rounded-md font-medium hover:from-indigo-800 hover:to-purple-700 hover:shadow-[0_0_10px_rgba(99,102,241,0.6)] transition-all"
+                    className="px-4 py-2 bg-gradient-to-r from-indigo-700 to-purple-600 rounded-md font-medium"
                   >
                     Start Camera
                   </button>
-
                   <button
                     type="button"
                     onClick={() => {
@@ -178,9 +199,9 @@ export default function VerifyPage() {
                           stream.getTracks().forEach((t) => t.stop());
                           video.srcObject = null;
                         }
-                      }, 'image/jpeg');
+                      });
                     }}
-                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 rounded-md font-medium hover:from-green-700 hover:to-emerald-600 hover:shadow-[0_0_10px_rgba(34,197,94,0.6)] transition-all"
+                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-500 rounded-md font-medium"
                   >
                     Capture
                   </button>
@@ -188,48 +209,27 @@ export default function VerifyPage() {
               </>
             ) : (
               <>
-                <img
-                  src={URL.createObjectURL(image1)}
-                  alt="Captured selfie"
-                  className="rounded-lg w-64 h-48 object-cover border border-white/10 shadow-md"
-                />
-                <button
-                  type="button"
-                  onClick={resetImages}
-                  className="text-sm text-red-400 hover:text-red-300 mt-2"
-                >
-                  Retake
-                </button>
+                <img src={URL.createObjectURL(image1)} className="w-64 h-48 rounded-lg object-cover" />
+                <button onClick={resetImages} className="text-sm text-red-400 mt-2">Retake</button>
               </>
             )}
           </div>
 
-          {/* Upload ID Card */}
+          {/* ID Card */}
           <div className="flex flex-col items-center space-y-3 mt-6">
             <p className="text-gray-300">Upload ID Card</p>
-            <label
-              htmlFor="id-card"
-              className="cursor-pointer px-5 py-2 rounded-md bg-gradient-to-r from-indigo-700 to-purple-600 text-white font-medium shadow-md hover:from-indigo-800 hover:to-purple-700 hover:shadow-[0_0_15px_rgba(99,102,241,0.6)] transition-all"
-            >
+            <label htmlFor="id-card" className="cursor-pointer px-5 py-2 rounded-md bg-gradient-to-r from-indigo-700 to-purple-600 text-white font-medium shadow-md">
               Choose File
             </label>
-            <input
-              id="id-card"
-              type="file"
-              accept="image/*"
-              onChange={(e) => setImage2(e.target.files?.[0] || null)}
-              className="hidden"
-            />
+            <input id="id-card" type="file" accept="image/*" onChange={(e) => setImage2(e.target.files?.[0] || null)} className="hidden" />
             {image2 && <p className="text-sm text-gray-400">{image2.name}</p>}
           </div>
 
           <button
             type="submit"
-            disabled={verifyDisabled}
-            className={`w-full py-2 rounded-md font-semibold shadow-md mt-4 transition-all ${
-              verifyDisabled
-                ? 'bg-gray-600 cursor-not-allowed opacity-70'
-                : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 hover:shadow-[0_0_15px_rgba(99,102,241,0.6)]'
+            disabled={loading || !image1 || !image2}
+            className={`w-full py-2 rounded-md font-semibold mt-4 ${
+              loading ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
             }`}
           >
             {loading ? 'Verifying...' : 'Verify'}
@@ -237,30 +237,14 @@ export default function VerifyPage() {
         </form>
 
         {result && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className={`mt-8 mx-auto text-center rounded-xl p-5 w-full shadow-lg backdrop-blur-md ${
-              result.match
-                ? 'bg-green-500/20 border border-green-400/40'
-                : 'bg-red-500/20 border border-red-400/40'
-            }`}
-          >
-            <h3
-              className={`text-2xl font-bold mb-2 ${
-                result.match ? 'text-green-400' : 'text-red-400'
-              }`}
-            >
-              {result.match ? 'Face Match Successful' : 'Face Mismatch'}
+          <div className={`mt-8 p-4 rounded-xl ${result.match ? 'bg-green-500/20' : 'bg-red-500/20'}`}>
+            <h3 className={`text-xl font-bold ${result.match ? 'text-green-400' : 'text-red-400'}`}>
+              {result.match ? 'Verification Successful' : 'Verification Failed'}
             </h3>
-          </motion.div>
+            <p className="text-gray-300 text-sm mt-2">Confidence: {result.confidence}</p>
+          </div>
         )}
       </motion.div>
-
-      <footer className="absolute bottom-6 text-sm text-gray-400">
-        GradLedger © {new Date().getFullYear()}
-      </footer>
     </div>
   );
 }

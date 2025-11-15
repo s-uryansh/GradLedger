@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { toast } from 'react-hot-toast';
 import ColorBends from '@/components/BackgroundAnimations/ColorBends';
 import Navbar from '@/components/UI/Navbar';
+import { toast } from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 import OtpModal from '@/components/Auth/OtpModal';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
+  const [sendingOtp, setSendingOtp] = useState(false);
   const [isOtpOpen, setIsOtpOpen] = useState(false);
-  const [sendingOtp, setSendingOtp] = useState(false); // <— new state
+  const [flipped, setFlipped] = useState(false);
   const router = useRouter();
 
+  // Fetch current user
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -29,6 +31,7 @@ export default function ProfilePage() {
     fetchUser();
   }, [router]);
 
+  // Logout
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
@@ -39,8 +42,9 @@ export default function ProfilePage() {
     }
   };
 
+  // Send OTP
   const handleSendOtp = async () => {
-    if (sendingOtp) return;
+    if (!user?.email) return;
     setSendingOtp(true);
     try {
       const res = await fetch('/api/verify/send-otp', {
@@ -69,7 +73,7 @@ export default function ProfilePage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden text-white">
-      {/* Background */}
+      {/* Animated Background */}
       <div className="fixed inset-0 -z-30">
         <ColorBends
           colors={['#3e47f4', '#06b31a', '#b46d04']}
@@ -82,13 +86,6 @@ export default function ProfilePage() {
           parallax={0.5}
           noise={0.1}
         />
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.10) 70%, rgba(0,0,0,0.15) 100%)',
-          }}
-        />
       </div>
 
       {/* Navbar */}
@@ -96,7 +93,7 @@ export default function ProfilePage() {
         <Navbar user={user} onLoginClick={() => router.push('/')} />
       </div>
 
-      {/* Profile Content */}
+      {/* Profile Card */}
       <main className="relative z-20 flex flex-col items-center justify-center min-h-[80vh] px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -104,12 +101,58 @@ export default function ProfilePage() {
           transition={{ duration: 0.6 }}
           className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl p-10 max-w-md w-full shadow-[0_0_40px_rgba(0,0,0,0.4)] text-center"
         >
-          <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-indigo-400 to-purple-400 text-transparent bg-clip-text">
-            Your Profile
-          </h2>
+        {/* Profile Image */}
+        <div className="flex flex-col items-center mb-6">
+          <motion.div
+            className="w-28 h-28 relative cursor-pointer"
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setFlipped(!flipped)}
+            style={{ perspective: 800 }}
+          >
+            <motion.div
+              animate={{ rotateY: flipped ? 180 : 0 }}
+              transition={{ duration: 0.6 }}
+              className="relative w-full h-full rounded-full shadow-lg"
+              style={{ transformStyle: 'preserve-3d' }}
+            >
+              {user.profileImage ? (
+                <motion.img
+                  src={user.profileImage}
+                  alt="Profile"
+                  className="absolute inset-0 w-full h-full rounded-full object-cover border-2 border-indigo-400 backface-hidden"
+                />
+              ) : (
+                <div className="absolute inset-0 w-full h-full rounded-full bg-gray-700 border-2 border-gray-600 flex items-center justify-center text-gray-400 text-sm">
+                  No ID Photo
+                </div>
+              )}
+              {user.selfieImage ? (
+                <motion.img
+                  src={user.selfieImage}
+                  alt="Selfie"
+                  className="absolute inset-0 w-full h-full rounded-full object-cover border-2 border-purple-400 backface-hidden"
+                  style={{ transform: 'rotateY(180deg)' }}
+                />
+              ) : (
+                <div
+                  className="absolute inset-0 w-full h-full rounded-full bg-gray-700 border-2 border-gray-600 flex items-center justify-center text-gray-400 text-sm"
+                  style={{ transform: 'rotateY(180deg)' }}
+                >
+                  No Selfie
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+            
+          <h3 className="text-xl font-bold mt-4">{user.fullName}</h3>
+          {user.rollNumber && <p className="text-gray-400">{user.rollNumber}</p>}
+          {(user.program || user.major) && (
+            <p className="text-gray-400">{user.program} — {user.major}</p>
+          )}
+        </div>
 
+          {/* Basic Info */}
           <div className="space-y-3 text-gray-300 text-sm text-left">
-            <p><span className="font-semibold text-white">Full Name:</span> {user.fullName}</p>
             <p><span className="font-semibold text-white">Email:</span> {user.email}</p>
             <p><span className="font-semibold text-white">Role:</span> {user.role}</p>
             <p>
@@ -120,12 +163,12 @@ export default function ProfilePage() {
             <p><span className="font-semibold text-white">Face Verified:</span> {user.faceVerified ? 'True' : 'False'}</p>
           </div>
 
-          {/* User Tags */}
+          {/* Tags */}
           {user.tags && user.tags.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2 mt-6">
-              {user.tags.map((tag: string, idx: number) => (
+              {user.tags.map((tag: string, i: number) => (
                 <span
-                  key={idx}
+                  key={i}
                   className="px-3 py-1 bg-gray-700/50 border border-gray-500/50 text-sm rounded-full text-indigo-300"
                 >
                   {tag}
@@ -134,16 +177,36 @@ export default function ProfilePage() {
             </div>
           )}
 
+          {!(user.mailVerified && user.faceVerified) && (
+            <div className="mt-6">
+              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                <span>Email</span>
+                <span>Face</span>
+                <span>Complete</span>
+              </div>
+              <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    user.mailVerified
+                      ? 'bg-indigo-500 w-2/3'
+                      : 'bg-gray-500 w-1/3'
+                  }`}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
           <div className="flex flex-col items-center gap-3 mt-8">
-            {!user.mailVerified && (
+            {!user.mailVerified ? (
               <>
                 <button
                   onClick={handleSendOtp}
                   disabled={sendingOtp}
-                  className={`px-6 py-2 rounded-lg font-semibold text-white transition-all ${
+                  className={`px-6 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 font-semibold text-white transition-all ${
                     sendingOtp
-                      ? 'bg-gray-600 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700'
+                      ? 'opacity-60 cursor-not-allowed'
+                      : 'hover:from-indigo-700 hover:to-purple-700'
                   }`}
                 >
                   {sendingOtp ? 'Sending OTP...' : 'Verify Email'}
@@ -156,21 +219,19 @@ export default function ProfilePage() {
                     onVerified={() => {
                       setUser({ ...user, mailVerified: true });
                       setIsOtpOpen(false);
-                      router.push('/verify');
+                      toast.success('Email verified!');
                     }}
                   />
                 )}
               </>
-            )}
-
-            {user.mailVerified && !user.faceVerified && (
+            ) : !user.faceVerified ? (
               <button
                 onClick={() => router.push('/verify')}
                 className="px-6 py-2 rounded-lg bg-gradient-to-r from-green-600 to-emerald-500 font-semibold text-white hover:from-green-700 hover:to-emerald-600 transition-all"
               >
                 Verify Face
               </button>
-            )}
+            ) : null}
 
             <button
               onClick={handleLogout}
