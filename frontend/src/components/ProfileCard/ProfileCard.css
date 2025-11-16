@@ -1,0 +1,100 @@
+.pc-wrap {
+  position: relative;
+  perspective: 900px;
+  --pointer-x: 50%;
+  --pointer-y: 50%;
+  --rotate-x: 0deg;
+  --rotate-y: 0deg;
+}
+
+.pc-shell {
+  transform-style: preserve-3d;
+  transition: transform 0.2s ease-out;
+}
+
+.pc-shell.active {
+  transform: rotateX(var(--rotate-y)) rotateY(var(--rotate-x));
+}
+
+.pc-card {
+  width: 280px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.09);
+  backdrop-filter: blur(12px);
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.pc-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.pc-avatar-box {
+  width: 85px;
+  height: 85px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.pc-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pc-info {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  align-items: center;
+}
+
+.pc-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pc-mini-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.pc-handle {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.pc-status {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.pc-btn {
+  padding: 6px 14px;
+  background: #3b82f6;
+  color: white;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.pc-details {
+  text-align: center;
+}
+
+.pc-details h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.pc-details p {
+  font-size: 13px;
+  opacity: 0.9;
+}

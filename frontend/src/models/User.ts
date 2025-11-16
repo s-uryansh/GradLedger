@@ -15,6 +15,9 @@ const UserSchema = new mongoose.Schema({
   rollNumber: { type: String, default: '' },
   program: { type: String, default: '' },
   major: { type: String, default: '' },
+  unreadMessages: { type: Number, default: 0 },
+  lastSeen: { type: Date, default: Date.now },
+  isOnline: { type: Boolean, default: false }
 });
 
 UserSchema.pre('save', function (next) {
