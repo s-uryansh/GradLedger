@@ -1,5 +1,6 @@
 'use client';
 
+import { Link } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useEffect, useState } from 'react';
 import { FiMessageSquare } from 'react-icons/fi';
@@ -40,6 +41,19 @@ export default function Navbar({ user, onLoginClick }: any) {
 
       {user ? (
         <div className="flex items-center gap-6">
+          <button
+            onClick={() => router.push('/explore')}
+            className="px-4 py-2 bg-transparent-600 rounded-lg text-sm font-semibold hover:bg-indigo-500 transition"
+          >
+            Explore
+          </button>
+          <button
+            onClick={() => router.push('/resources/upload')}
+            className="px-4 py-2 bg-transparent-600 rounded-lg text-sm font-semibold hover:bg-indigo-500 transition"
+          >
+            Upload
+          </button>
+          
           <button
             onClick={() => router.push('/messages')}
             className="relative text-white hover:text-gray-200 transition"

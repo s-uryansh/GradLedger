@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import io from 'socket.io-client';
 import Navbar from '@/components/UI/Navbar';
+import ColorBends from '@/components/BackgroundAnimations/ColorBends';
 import { FiSend } from 'react-icons/fi';
 
 let socket: any = null;
@@ -88,7 +89,7 @@ export default function ChatPage() {
     const payload = {
       conversationId: convoId,
       sender: user._id,
-      receiver: other._id,       // FIXED
+      receiver: other._id,      
       text: input.trim(),
     };
 
@@ -114,6 +115,28 @@ export default function ChatPage() {
 
   return (
     <div className="relative min-h-screen text-white">
+      {/* background */}
+      <div className="fixed inset-0 -z-30">
+        <ColorBends
+          colors={['#3e47f4', '#06b31a', '#b46d04']}
+          rotation={0}
+          speed={0.3}
+          scale={1}
+          frequency={1}
+          warpStrength={1}
+          mouseInfluence={1}
+          parallax={0.5}
+          noise={0.1}
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.10) 70%, rgba(0,0,0,0.15) 100%)',
+          }}
+        />
+      </div>
+
       <Navbar user={user} onLoginClick={() => {}} />
 
       <div className="pt-24 max-w-2xl mx-auto px-4">

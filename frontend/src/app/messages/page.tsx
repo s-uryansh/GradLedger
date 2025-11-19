@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Navbar from '@/components/UI/Navbar';
 import { useRouter } from 'next/navigation';
 import { FiSearch } from 'react-icons/fi';
+import ColorBends from '@/components/BackgroundAnimations/ColorBends';
 
 export default function MessagesPage() {
   const [user, setUser] = useState<any>(null);
@@ -44,7 +45,7 @@ export default function MessagesPage() {
       const data = await res.json();
 
       if (page === 1) setConversations(data);
-      else setConversations((prev) => [...prev, ...data]);
+      else setConversations(prev => [...prev, ...data]);
 
       setFiltered(data);
     };
@@ -60,27 +61,51 @@ export default function MessagesPage() {
 
     const s = search.toLowerCase();
     setFiltered(
-      conversations.filter((c) =>
+      conversations.filter(c =>
         c.participants.some(
           (p: any) =>
-            p._id !== user._id &&
-            p.fullName.toLowerCase().includes(s)
+            p._id !== user._id && p.fullName.toLowerCase().includes(s)
         )
       )
     );
   }, [search, conversations, user]);
 
-  if (loadingUser)
+  if (loadingUser) {
     return (
       <div className="text-gray-300 min-h-screen flex items-center justify-center">
         Loading...
       </div>
     );
+  }
 
   return (
-    <div className="relative min-h-screen text-white">
+    <div className="relative min-h-screen w-full overflow-x-hidden text-white">
+      {/* === Background === */}
+      <div className="fixed inset-0 -z-30">
+        <ColorBends
+          colors={['#3e47f4', '#06b31a', '#b46d04']}
+          rotation={0}
+          speed={0.3}
+          scale={1}
+          frequency={1}
+          warpStrength={1}
+          mouseInfluence={1}
+          parallax={0.5}
+          noise={0.1}
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.10) 70%, rgba(0,0,0,0.15) 100%)',
+          }}
+        />
+      </div>
+
+      {/* === Navbar === */}
       <Navbar user={user} onLoginClick={() => {}} />
 
+      {/* === Content === */}
       <div className="pt-24 max-w-xl mx-auto px-4">
         <div className="flex items-center gap-3 bg-white/10 px-3 py-2 rounded-lg">
           <FiSearch size={18} className="text-gray-300" />
