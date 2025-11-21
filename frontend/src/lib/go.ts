@@ -19,7 +19,12 @@ async function api(path: string, options: RequestInit = {}) {
 
   return res.json();
 }
-
+export function verifyUserOnChain(payload: any) {
+  return api('/user/verify', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
 // ---------- USERS ----------
 export function getUserInfo(address: string) {
   return api(`/user/${address}`);

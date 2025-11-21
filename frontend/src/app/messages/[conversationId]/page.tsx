@@ -105,6 +105,24 @@ export default function ChatPage() {
     });
   };
 
+  const makePlaceholder = (seed?: string, name?: string) => {
+    const source = seed || name || Math.random().toString();
+    let hash = 0;
+    for (let i = 0; i < source.length; i++) hash = (hash * 31 + source.charCodeAt(i)) | 0;
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const a = letters[Math.abs(hash) % letters.length];
+    const b = letters[Math.abs(hash >> 8) % letters.length];
+    const c = letters[Math.abs(hash >> 16) % letters.length];
+    return `${a}${b}${c}`;
+  };
+
+  const AvatarEl = ({ img, seed, name }: { img?: string; seed?: string; name?: string }) => {
+    if (img) return <img src={img} className="w-12 h-12 rounded-full object-cover" />;
+    const code = makePlaceholder(seed, name);
+    const bg = "#4b5563";
+    return <div style={{ background: bg }} className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold">{code}</div>;
+  };
+
   if (!user || !other) {
     return (
       <div className="text-gray-300 min-h-screen flex items-center justify-center">
@@ -141,10 +159,7 @@ export default function ChatPage() {
 
       <div className="pt-24 max-w-2xl mx-auto px-4">
         <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg mb-4">
-          <img
-            src={other.profileImage}
-            className="w-12 h-12 rounded-full object-cover"
-          />
+          <AvatarEl img={other.profileImage} seed={other._id} name={other.fullName} />
           <div>
             <p className="font-semibold">{other.fullName}</p>
           </div>

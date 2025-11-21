@@ -7,6 +7,7 @@ import Navbar from '@/components/UI/Navbar';
 import { verifyFaces } from '@/lib/pythonAPI';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { verifyUserOnChain } from "@/lib/onChain";
 
 export default function VerifyPage() {
   const [image1, setImage1] = useState<File | null>(null);
@@ -114,6 +115,43 @@ export default function VerifyPage() {
 
       const data = await res2.json();
       if (data.success) {
+        try {
+            const txResp = await verifyUserOnChain({
+                  address: user.walletAddress,
+                  role: user.role,
+                  name: user.fullName,
+                  rollNo: uploadData.rollNumber,
+                  program: uploadData.program,
+                  major: uploadData.major,
+                  pic: uploadData.url || ""
+                });
+              
+                toast.success(`Tx submitted: ${txResp.hash}. Waiting for confirmation...`);
+              
+                const receipt = await txResp.wait(1); 
+                if (!receipt || receipt.status !== 1) {
+                  toast.error("On-chain verification transaction failed.");
+                } else {
+                  toast.success("On-chain verification confirmed.");
+                
+                  try {
+                    await fetch(`${process.env.NEXT_PUBLIC_GO_BASE || 'http://localhost:8080'}/user/verify/callback`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        address: user.walletAddress,
+                        txHash: txResp.hash,
+                        blockNumber: receipt.blockNumber
+                      }),
+                    });
+                  } catch (e) {
+                    console.warn("Failed to notify Go backend:", e);
+                  }
+                }
+              } catch (e: any) {
+                console.error("MetaMask/On-chain error:", e);
+                toast.error(e?.message || "On-chain submission failed");
+            }
         toast.success('Verification completed successfully!');
         setTimeout(() => router.push('/'), 1500);
       } else {

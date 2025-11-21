@@ -78,6 +78,25 @@ export default function MessagesPage() {
     );
   }
 
+  // helper: deterministic 3-letter placeholder
+  const makePlaceholder = (seed?: string, name?: string) => {
+    const source = seed || name || Math.random().toString();
+    let hash = 0;
+    for (let i = 0; i < source.length; i++) hash = (hash * 31 + source.charCodeAt(i)) | 0;
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const a = letters[Math.abs(hash) % letters.length];
+    const b = letters[Math.abs(hash >> 8) % letters.length];
+    const c = letters[Math.abs(hash >> 16) % letters.length];
+    return `${a}${b}${c}`;
+  };
+
+  const AvatarEl = ({ img, seed, name }: { img?: string; seed?: string; name?: string }) => {
+    if (img) return <img src={img} className="w-12 h-12 rounded-full object-cover" />;
+    const code = makePlaceholder(seed, name);
+    const bg = "#4b5563";
+    return <div style={{ background: bg }} className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold">{code}</div>;
+  };
+
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden text-white">
       {/* === Background === */}
@@ -120,9 +139,10 @@ export default function MessagesPage() {
 
         <div className="mt-6 space-y-3">
           {filtered.map((convo) => {
-            const other = convo.participants.find(
-              (p: any) => p._id !== user._id
-            );
+            // defensive: participants or "other" might be missing from server data
+            const other =
+              (convo.participants && convo.participants.find((p: any) => p._id !== user._id)) ||
+              { profileImage: null, _id: convo._id, fullName: 'Unknown' };
 
             return (
               <div
@@ -130,16 +150,11 @@ export default function MessagesPage() {
                 onClick={() => router.push(`/messages/${convo._id}`)}
                 className="p-3 bg-white/5 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/10 transition"
               >
-                <img
-                  src={other.profileImage}
-                  className="w-12 h-12 rounded-full object-cover"
-                />
+                <AvatarEl img={other.profileImage} seed={other._id} name={other.fullName} />
                 <div>
                   <p className="text-sm font-semibold">{other.fullName}</p>
                   <p className="text-xs text-gray-400">
-                    {convo.lastMessage?.text
-                      ? convo.lastMessage.text.slice(0, 30)
-                      : 'No messages yet'}
+                    {convo.lastMessage?.text ? convo.lastMessage.text.slice(0, 30) : 'No messages yet'}
                   </p>
                 </div>
               </div>

@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import Navbar from '@/components/UI/Navbar';
 import ColorBends from '@/components/BackgroundAnimations/ColorBends';
+import VoteBox from "@/components/Resources/VoteBox";
 
-export default function PublicProfile({ params }: any) {
+export default function PublicProfile() {
+  const { id } = useParams() as { id: string };
   const router = useRouter();
-  const { id } = params;
 
   const [viewer, setViewer] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -33,6 +34,17 @@ export default function PublicProfile({ params }: any) {
 
     const convo = await res.json();
     router.push(`/messages/${convo._id}`);
+  };
+
+  const makePlaceholder = (seed?: string, name?: string) => {
+    const source = seed || name || Math.random().toString();
+    let hash = 0;
+    for (let i = 0; i < source.length; i++) hash = (hash * 31 + source.charCodeAt(i)) | 0;
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const a = letters[Math.abs(hash) % letters.length];
+    const b = letters[Math.abs(hash >> 8) % letters.length];
+    const c = letters[Math.abs(hash >> 16) % letters.length];
+    return `${a}${b}${c}`;
   };
 
   if (!profile || !viewer) return <div className="text-white p-10">Loading...</div>;
@@ -64,13 +76,26 @@ export default function PublicProfile({ params }: any) {
       <Navbar user={viewer} />
 
       <div className="mt-24 flex flex-col items-center">
-        <img
-          src={profile.selfieImage || profile.profileImage}
-          className="w-32 h-32 rounded-full border border-white/20 object-cover"
-        />
+        { (profile.selfieImage || profile.profileImage) ? (
+          <img src={profile.selfieImage || profile.profileImage} className="w-32 h-32 rounded-full border border-white/20 object-cover" />
+        ) : (
+          <div className="w-32 h-32 rounded-full border border-white/20 flex items-center justify-center" style={{ background: "#374151" }}>
+            <span className="text-white font-bold text-2xl">{makePlaceholder(profile._id, profile.fullName)}</span>
+          </div>
+        )}
 
         <h2 className="mt-4 text-2xl font-bold">{profile.fullName}</h2>
         <p className="text-gray-300 text-sm">{profile.program} — {profile.major}</p>
+          <div className="mt-4 flex items-center gap-4">
+            <div className="flex items-center gap-3 mt-1">
+              <VoteBox
+                walletAddress={profile.walletAddress}
+                initialScore={Number(profile.reputation)}
+                viewerId={viewer?._id}
+                profileId={profile._id}
+              />
+            </div>
+          </div>
 
         <button
           onClick={startChat}

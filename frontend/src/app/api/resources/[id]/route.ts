@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Resource from "@/models/Resource";
+import { getReputation } from "@/lib/go";
 
 interface Params {
   id: string;
@@ -12,30 +13,45 @@ export async function GET(
 ) {
   await connectDB();
 
-  const { id } = (await params) as Params;
+  const { id } = await params;
   const url = new URL(req.url);
   const viewerId = url.searchParams.get("viewerId");
 
   const r = await Resource.findById(id)
-    .populate("owner", "fullName profileImage")
-    .populate("approvedUsers", "_id");
+    .populate("owner", "_id fullName profileImage selfieImage walletAddress")
+    .populate("approvedUsers", "_id")
+    .populate("requests.user", "_id fullName");
 
   if (!r) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const isOwner =
-    viewerId !== null && r.owner._id.toString() === viewerId;
+  const owner = r.owner as any;
 
+  let ownerReputation = 0;
+  try {
+    if (owner?.walletAddress) {
+      const repData = await getReputation(owner.walletAddress);
+      ownerReputation = Number(repData?.score ?? 0);
+    }
+  } catch (err) {
+    console.warn("Reputation fetch failed:", err);
+  }
+
+  const isOwner = viewerId && owner?._id?.toString() === viewerId;
   const isApproved =
-    viewerId !== null &&
-    r.approvedUsers.some((u: { _id: any }) => u._id.toString() === viewerId);
+    viewerId &&
+    Array.isArray(r.approvedUsers) &&
+    r.approvedUsers.some((u: any) => u._id.toString() === viewerId);
 
   const allowed = r.isPublic || isOwner || isApproved;
 
   const viewerRequest =
-    viewerId !== null
-      ? r.requests.find((req: { user: any }) => req.user.toString() === viewerId)
+    viewerId
+      ? (r.requests || []).find((req: any) => {
+          const uid = req.user?._id?.toString() ?? req.user?.toString();
+          return uid === viewerId;
+        })
       : null;
 
   return NextResponse.json({
@@ -46,12 +62,20 @@ export async function GET(
       category: r.category,
       subject: r.subject,
       tags: r.tags,
-      owner: r.owner,
+      owner: {
+        _id: owner._id,
+        fullName: owner.fullName,
+        profileImage: owner.profileImage,
+        selfieImage: owner.selfieImage,
+        walletAddress: owner.walletAddress,
+        reputation: ownerReputation,
+      },
       isPublic: r.isPublic,
       createdAt: r.createdAt,
       allowed,
       requestStatus: viewerRequest?.status || "none",
       fileUrl: allowed ? r.fileUrl : null,
+      requests: isOwner ? r.requests : [],
     },
   });
 }

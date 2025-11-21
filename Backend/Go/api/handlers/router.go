@@ -23,15 +23,16 @@ func RegisterRoutes(app *fiber.App) {
 	app.Post("/mentorship/complete", CompleteSessionTx)
 	app.Post("/mentorship/feedback", GiveFeedbackTx)
 
-	// --- Content Registry (IPFS-backed) ---
+	// --- Content ---
 	app.Get("/content/:id", GetContent)
-	app.Get("/content/public/list", ListPublicContent)
+	app.Get("/content/public", ListPublicContent)
 	app.Get("/content/uploads/:address", GetUserUploads)
-
 	app.Post("/content/upload", UploadContent)
-
-	// --- Content Access (ContentAccess.sol) ---
 	app.Get("/content/access/:contentId/:viewer", CheckAccess)
 	app.Post("/content/access/grant", GrantAccess)
 	app.Post("/content/access/revoke", RevokeAccess)
+
+	app.Get("/resources/:id", GetContent)
+	app.Post("/user/verify/callback", VerifyCallback)
+
 }

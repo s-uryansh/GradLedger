@@ -100,7 +100,7 @@ export default function ResourcesManagePage() {
   if (!viewer) return <div className="text-white p-8">Loading...</div>;
 
   return (
-    <div className="relative min-h-screen w-full overflow-x-hidden text-white">
+    <div className="manage-page relative min-h-screen w-full overflow-x-hidden text-white">
       <div className="fixed inset-0 -z-30">
         <ColorBends colors={['#3e47f4','#06b31a','#b46d04']} rotation={0} speed={0.3} scale={1} frequency={1} warpStrength={1} mouseInfluence={1} parallax={0.5} noise={0.1}/>
         <div className="absolute inset-0 pointer-events-none" style={{background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 25%, rgba(0,0,0,0.10) 70%, rgba(0,0,0,0.15) 100%)'}}/>
@@ -135,6 +135,62 @@ export default function ResourcesManagePage() {
           </div>
         )}
       </main>
+
+      <style jsx>{`
+        /* limit scope to this page so other screens are unaffected */
+        .manage-page :global(.bg-indigo-600) {
+          background: rgba(99,102,241,0.08) !important; /* subtle indigo tint */
+          color: #c7d2fe !important;
+          box-shadow: none !important;
+          border: 1px solid rgba(99,102,241,0.14) !important;
+        }
+        .manage-page :global(.bg-indigo-600:hover),
+        .manage-page :global(.bg-indigo-600:focus) {
+          background: rgba(99,102,241,0.12) !important;
+        }
+
+        .manage-page :global(.bg-amber-600) {
+          background: rgba(249,115,22,0.08) !important; /* subtle amber tint */
+          color: #ffd8a8 !important;
+          box-shadow: none !important;
+          border: 1px solid rgba(249,115,22,0.12) !important;
+        }
+        .manage-page :global(.bg-amber-600:hover),
+        .manage-page :global(.bg-amber-600:focus) {
+          background: rgba(249,115,22,0.12) !important;
+        }
+
+        /* cover common red variants used for destructive buttons */
+        .manage-page :global(.bg-red-500),
+        .manage-page :global(.bg-red-600),
+        .manage-page :global(.bg-red-700) {
+          background: rgba(239,68,68,0.08) !important; /* subtle red tint */
+          color: #ffd7d7 !important;
+          box-shadow: none !important;
+          border: 1px solid rgba(239,68,68,0.12) !important;
+        }
+        .manage-page :global(.bg-red-500:hover),
+        .manage-page :global(.bg-red-500:focus),
+        .manage-page :global(.bg-red-600:hover),
+        .manage-page :global(.bg-red-600:focus),
+        .manage-page :global(.bg-red-700:hover),
+        .manage-page :global(.bg-red-700:focus) {
+          background: rgba(239,68,68,0.12) !important;
+        }
+
+        /* reduce heavy shadows on any buttons inside cards */
+        .manage-page :global(.shadow-md),
+        .manage-page :global(.shadow-lg) {
+          box-shadow: none !important;
+        }
+
+        /* ensure small buttons keep readable padding and rounded look */
+        .manage-page :global(.px-2),
+        .manage-page :global(.px-3) {
+          padding-left: 0.5rem !important;
+          padding-right: 0.5rem !important;
+        }
+      `}</style>
 
       {activeResource && (
         <ManageRequestsModal

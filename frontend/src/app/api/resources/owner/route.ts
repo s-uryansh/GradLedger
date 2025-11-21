@@ -1,4 +1,3 @@
-// src/app/api/resources/owner/route.ts
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Resource from "@/models/Resource";

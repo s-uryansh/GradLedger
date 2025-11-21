@@ -1,10 +1,16 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"log"
 	"math/big"
+	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"backend_go/bindings"
 
@@ -22,6 +28,40 @@ var ContentRegistry *bindings.ContentRegistry
 var ContentAccess *bindings.ContentAccess
 var Client *ethclient.Client
 
+var ErrOperatorKeyMissing = errors.New("OPERATOR_PRIVATE_KEY environment variable not set")
+var frontendSyncURL = "http://localhost:3000/api/onchain/sync"
+
+func NotifyFrontendOnChainVerified(addr, tx string, block int64) error {
+	payload := map[string]any{
+		"address":     addr,
+		"txHash":      tx,
+		"blockNumber": block,
+	}
+
+	body, _ := json.Marshal(payload)
+
+	req, _ := http.NewRequest("POST", frontendSyncURL, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+
+	_, err := http.DefaultClient.Do(req)
+	return err
+}
+
+// new helper: notify frontend about reputation changes
+func NotifyFrontendReputationChanged(addr string, newScore int64, txHash string) error {
+	payload := map[string]any{
+		"event":    "reputation_changed",
+		"address":  addr,
+		"newScore": newScore,
+		"txHash":   txHash,
+	}
+	body, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", frontendSyncURL, bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	_, err := http.DefaultClient.Do(req)
+	return err
+}
+
 // Connect dials the Ethereum client.
 func Connect(clientUrl string) {
 	var err error
@@ -29,11 +69,35 @@ func Connect(clientUrl string) {
 	if err != nil {
 		log.Fatalf("Failed to connect to Ethereum client: %v", err)
 	}
+	if opKey := os.Getenv("OPERATOR_PRIVATE_KEY"); opKey != "" {
+		pk := strings.TrimPrefix(opKey, "0x")
+		priv, err := crypto.HexToECDSA(pk)
+		if err == nil {
+			addr := crypto.PubkeyToAddress(priv.PublicKey)
+			bal, err := Client.BalanceAt(context.Background(), addr, nil)
+			if err == nil {
+				log.Println("Operator address:", addr.Hex(), "balance (wei):", bal.String())
+			} else {
+				log.Println("Failed to get operator balance:", err)
+			}
+		} else {
+			log.Println("Invalid OPERATOR_PRIVATE_KEY:", err)
+		}
+	} else {
+		log.Println("OPERATOR_PRIVATE_KEY not set")
+	}
+
+	log.Println("Connected RPC:", clientUrl)
+
 	log.Println("Connected to Ethereum client")
 }
 
 // LoadContracts binds contract addresses to generated bindings.
 func LoadContracts(urAddr, repAddr, mentAddr, crAddr, caAddr string) {
+	log.Println("Using Reputation contract at:", repAddr)
+	chainID, _ := Client.NetworkID(context.Background())
+	log.Println("Connected RPC chain id:", chainID.String())
+
 	var err error
 	UserRegistry, err = bindings.NewUserRegistry(common.HexToAddress(urAddr), Client)
 	if err != nil {
@@ -79,7 +143,12 @@ func WatchMentorshipEvents() {
 			case evt := <-ch:
 				log.Printf("New Mentorship Request: ID=%d, Student=%s, Mentor=%s", evt.Id, evt.Student.Hex(), evt.Mentor.Hex())
 			case err := <-sub.Err():
-				log.Println("Mentorship watcher error:", err)
+				if err == nil {
+					log.Println("Watcher closed")
+					return
+				}
+				log.Println("Watcher error:", err)
+				return
 			}
 		}
 	}()
@@ -97,7 +166,12 @@ func WatchContentEvents() {
 			case evt := <-ch:
 				log.Printf("New Content Uploaded: ID=%d, Uploader=%s, Title=%s, Public=%v", evt.ContentId, evt.Uploader.Hex(), evt.Title, evt.IsPublic)
 			case err := <-sub.Err():
+				if err == nil {
+					log.Println("Watcher closed")
+					return
+				}
 				log.Println("Content watcher error:", err)
+				return
 			}
 		}
 	}()
@@ -115,7 +189,12 @@ func WatchUserEvents() {
 			case evt := <-ch:
 				log.Printf("User Verified: %s, Role=%d, Name=%s", evt.User.Hex(), evt.Role, evt.Name)
 			case err := <-sub.Err():
+				if err == nil {
+					log.Println("Watcher closed")
+					return
+				}
 				log.Println("User watcher error:", err)
+				return
 			}
 		}
 	}()
@@ -132,8 +211,17 @@ func WatchReputationEvents() {
 			select {
 			case evt := <-ch:
 				log.Printf("Reputation Changed: Mentor=%s, Delta=%d, NewScore=%d", evt.Mentor.Hex(), evt.Delta.Int64(), evt.NewScore.Int64())
+				// notify frontend/backend so persisted user records can be refreshed
+				if err := NotifyFrontendReputationChanged(evt.Mentor.Hex(), evt.NewScore.Int64(), evt.Raw.TxHash.Hex()); err != nil {
+					log.Println("Failed to notify frontend about reputation change:", err)
+				}
 			case err := <-sub.Err():
+				if err == nil {
+					log.Println("Watcher closed")
+					return
+				}
 				log.Println("Reputation watcher error:", err)
+				return
 			}
 		}
 	}()
@@ -145,11 +233,18 @@ func makeAuthFromPrivateKey(pkHex string) (*bind.TransactOpts, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainID := big.NewInt(11155111) // Sepolia; change if necessary
+
+	chainID, err := Client.NetworkID(context.Background())
+	if err != nil {
+		log.Println("Failed to fetch network/chain id from RPC:", err)
+		chainID = big.NewInt(11155111)
+	}
+
 	auth, err := bind.NewKeyedTransactorWithChainID(priv, chainID)
 	if err != nil {
 		return nil, err
 	}
+	log.Println("Using chain ID:", chainID.String())
 	return auth, nil
 }
 
@@ -278,6 +373,40 @@ func VerifyUserTx(data *struct {
 	return tx.Hash().Hex(), nil
 }
 
+// VerifyUserOnChain uses a server-side operator private key (from env)
+// to call UserRegistry.VerifyUser for the given user address and metadata.
+// Expects OPERATOR_PRIVATE_KEY in env as hex (with or without 0x).
+func VerifyUserOnChain(data *struct {
+	Address string
+	Role    uint8
+	Name    string
+	RollNo  string
+	Program string
+	Major   string
+	Pic     string
+}) (string, error) {
+	// read operator key from env
+	opKey := os.Getenv("OPERATOR_PRIVATE_KEY")
+	if opKey == "" {
+		return "", ErrOperatorKeyMissing
+	}
+
+	// strip 0x if present and create auth
+	privHex := strings.TrimPrefix(opKey, "0x")
+	auth, err := makeAuthFromPrivateKey(privHex)
+	if err != nil {
+		return "", err
+	}
+
+	// call contract
+	addr := common.HexToAddress(data.Address)
+	tx, err := UserRegistry.VerifyUser(auth, addr, data.Role, data.Name, data.RollNo, data.Program, data.Major, data.Pic)
+	if err != nil {
+		return "", err
+	}
+	return tx.Hash().Hex(), nil
+}
+
 // UploadContentTx uploads content metadata to ContentRegistry
 func UploadContentTx(privateKeyHex, cid, title string, isPublic bool) (string, error) {
 	auth, err := makeAuthFromPrivateKey(privateKeyHex)
@@ -392,10 +521,107 @@ func AddReputation(privateKeyHex string, mentor common.Address, amount *big.Int)
 	if err != nil {
 		return "", err
 	}
-	tx, err := Reputation.Add(auth, mentor, amount)
+	log.Println("Sending tx from:", auth.From.Hex())
+
+	// Read current operator so we can restore later
+	currOp, err := Reputation.Operator(&bind.CallOpts{Context: context.Background()})
 	if err != nil {
 		return "", err
 	}
+	log.Println("Current operator:", currOp.Hex())
+
+	// If auth.From is already the operator we can directly call Add
+	needRestore := true
+	if strings.EqualFold(currOp.Hex(), auth.From.Hex()) {
+		needRestore = false
+	}
+
+	// 1) if needed, set operator to this auth (owner must be calling this)
+	if needRestore {
+		setOpTx, err := Reputation.SetOperator(auth, auth.From)
+		if err != nil {
+			return "", err
+		}
+		log.Println("Sent Reputation.SetOperator ->", setOpTx.Hash().Hex())
+
+		// wait for mining
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		receipt, err := bind.WaitMined(ctx, Client, setOpTx)
+		if err != nil {
+			log.Println("WaitMined error for setOperator:", err)
+			return setOpTx.Hash().Hex(), nil
+		}
+		if receipt == nil || receipt.Status == 0 {
+			log.Println("setOperator tx failed or reverted")
+			return setOpTx.Hash().Hex(), nil
+		}
+	}
+
+	// 2) Call Reputation.add (now auth.From == operator)
+	tx, err := Reputation.Add(auth, mentor, amount)
+	if err != nil {
+		// attempt best-effort restore if we changed operator
+		if needRestore {
+			_, _ = Reputation.SetOperator(auth, currOp)
+		}
+		return "", err
+	}
+	log.Println("Sent Reputation.Add tx:", tx.Hash().Hex())
+
+	// wait for mining
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	receipt, err := bind.WaitMined(ctx, Client, tx)
+	if err != nil {
+		log.Println("WaitMined error (Add):", err)
+		// best-effort restore operator
+		if needRestore {
+			_, _ = Reputation.SetOperator(auth, currOp)
+		}
+		return tx.Hash().Hex(), nil
+	}
+	if receipt == nil {
+		log.Println("No receipt returned from WaitMined (Add)")
+	} else {
+		log.Printf("Reputation Add mined. tx=%s status=%d logs=%d\n", tx.Hash().Hex(), receipt.Status, len(receipt.Logs))
+		if receipt.Status == 0 {
+			log.Println("Reputation.Add reverted. Check contract/caller funds/params.")
+		}
+	}
+
+	// 3) restore operator back to previous value (if we changed it)
+	if needRestore {
+		restoreTx, err := Reputation.SetOperator(auth, currOp)
+		if err != nil {
+			log.Println("Failed to send restore setOperator:", err)
+			// still return tx hash of add — don't fail hard
+			return tx.Hash().Hex(), nil
+		}
+		log.Println("Sent Reputation.SetOperator(restore) ->", restoreTx.Hash().Hex())
+
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel2()
+		_, err = bind.WaitMined(ctx2, Client, restoreTx)
+		if err != nil {
+			log.Println("WaitMined error for restore setOperator:", err)
+		}
+	}
+
+	// read updated score from chain (best-effort)
+	newScoreBig, err := GetReputation(mentor)
+	var newScoreInt int64 = 0
+	if err != nil {
+		log.Println("Failed to read new reputation score after Add:", err)
+	} else if newScoreBig != nil {
+		newScoreInt = newScoreBig.Int64()
+	}
+
+	// notify frontend/backend of change (best-effort)
+	if err := NotifyFrontendReputationChanged(mentor.Hex(), newScoreInt, tx.Hash().Hex()); err != nil {
+		log.Println("Notify frontend error (AddReputation):", err)
+	}
+
 	return tx.Hash().Hex(), nil
 }
 
@@ -404,10 +630,101 @@ func SubReputation(privateKeyHex string, mentor common.Address, amount *big.Int)
 	if err != nil {
 		return "", err
 	}
-	tx, err := Reputation.Sub(auth, mentor, amount)
+	log.Println("Sending tx from:", auth.From.Hex())
+
+	// Read current operator so we can restore later
+	currOp, err := Reputation.Operator(&bind.CallOpts{Context: context.Background()})
 	if err != nil {
 		return "", err
 	}
+	log.Println("Current operator:", currOp.Hex())
+
+	needRestore := true
+	if strings.EqualFold(currOp.Hex(), auth.From.Hex()) {
+		needRestore = false
+	}
+
+	// 1) set operator to this auth if needed
+	if needRestore {
+		setOpTx, err := Reputation.SetOperator(auth, auth.From)
+		if err != nil {
+			return "", err
+		}
+		log.Println("Sent Reputation.SetOperator ->", setOpTx.Hash().Hex())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+		receipt, err := bind.WaitMined(ctx, Client, setOpTx)
+		if err != nil {
+			log.Println("WaitMined error for setOperator:", err)
+			return setOpTx.Hash().Hex(), nil
+		}
+		if receipt == nil || receipt.Status == 0 {
+			log.Println("setOperator tx failed or reverted")
+			return setOpTx.Hash().Hex(), nil
+		}
+	}
+
+	// 2) Call Reputation.sub
+	tx, err := Reputation.Sub(auth, mentor, amount)
+	if err != nil {
+		if needRestore {
+			_, _ = Reputation.SetOperator(auth, currOp)
+		}
+		return "", err
+	}
+	log.Println("Sent Reputation.Sub tx:", tx.Hash().Hex())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	receipt, err := bind.WaitMined(ctx, Client, tx)
+	if err != nil {
+		log.Println("WaitMined error (Sub):", err)
+		if needRestore {
+			_, _ = Reputation.SetOperator(auth, currOp)
+		}
+		return tx.Hash().Hex(), nil
+	}
+	if receipt == nil {
+		log.Println("No receipt returned from WaitMined (Sub)")
+	} else {
+		log.Printf("Reputation Sub mined. tx=%s status=%d logs=%d\n", tx.Hash().Hex(), receipt.Status, len(receipt.Logs))
+		if receipt.Status == 0 {
+			log.Println("Reputation.Sub reverted. Check contract/caller funds/params.")
+		}
+	}
+
+	// 3) restore operator
+	if needRestore {
+		restoreTx, err := Reputation.SetOperator(auth, currOp)
+		if err != nil {
+			log.Println("Failed to send restore setOperator:", err)
+			return tx.Hash().Hex(), nil
+		}
+		log.Println("Sent Reputation.SetOperator(restore) ->", restoreTx.Hash().Hex())
+
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel2()
+		_, err = bind.WaitMined(ctx2, Client, restoreTx)
+		if err != nil {
+			log.Println("WaitMined error for restore setOperator:", err)
+		}
+	}
+
+	// read updated score from chain (best-effort)
+	newScoreBig, err := GetReputation(mentor)
+	var newScoreInt int64 = 0
+	if err != nil {
+		log.Println("Failed to read new reputation score after Sub:", err)
+	} else if newScoreBig != nil {
+		newScoreInt = newScoreBig.Int64()
+	}
+
+	// notify frontend/backend of change (best-effort)
+	if err := NotifyFrontendReputationChanged(mentor.Hex(), newScoreInt, tx.Hash().Hex()); err != nil {
+		log.Println("Notify frontend error (SubReputation):", err)
+	}
+
 	return tx.Hash().Hex(), nil
 }
 

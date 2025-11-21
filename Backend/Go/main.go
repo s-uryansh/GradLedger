@@ -5,6 +5,7 @@ import (
 	"backend_go/services"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 )
 
 func main() {
@@ -12,14 +13,24 @@ func main() {
 	services.Connect("wss://sepolia.infura.io/ws/v3/c4bff9d0b6964e4c85bf89e71c0d4a53")
 
 	services.LoadContracts(
-		"0x623E59402bE01B511e373Bb68f67547BfD01b59e", // UserRegistry
-		"0x8D284763B058A1536751A010AD63d11eafc949C2", // Reputation
-		"0x5891F4255fE279f05fb1562B52E929254AdFC789", // Mentorship
-		"0x371A83ec5190db8F93b4e868bca1E60090E11479", // ContentRegistry
-		"0x8A50a537A11Da2981BE1041Dc4F3B7bfAe660dED", // ContentAccess
+		"0x26FACdd7b5912537ddaAA0f0A19B3Ee0Eb4E0BBc", // UserRegistry
+		"0x0d266b68CCDf64c34106f39f12B9Fec5a0D0ED86", // Reputation
+		"0xC9B8139e244622E04411c614553899cC445Fd7B8", // Mentorship
+		"0x0Df41985D12a3768FE67AE48C18190CE223BFf34", // ContentRegistry
+		"0x9619f27Efed6Fa103478D4b17e6E0f8358A51C6d", // ContentAccess
 	)
 
 	app := fiber.New()
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowCredentials: false,
+	}))
+	app.Use(func(c fiber.Ctx) error {
+		println("[REQ]", c.Method(), c.Path())
+		return c.Next()
+	})
 
 	handlers.RegisterRoutes(app)
 

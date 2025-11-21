@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useState } from "react";
 import Navbar from "@/components/UI/Navbar";
@@ -12,27 +12,43 @@ export default function ExplorePage() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      const me = await fetch("/api/auth/me", { credentials: "include" }).then(r => r.json()).catch(() => ({}));
-      setViewer(me.user || null);
+useEffect(() => {
+  const load = async () => {
+    const me = await fetch("/api/auth/me", { credentials: "include" }).then(r => r.json()).catch(() => ({}));
+    const v = me.user || null;
 
-      const res = await fetch(`/api/resources/list?page=1&q=&publicOnly=true`);
-      const data = await res.json();
-      setItems(data.users || []);
-      setLoading(false);
-    })();
-  }, []);
+    setViewer(v);
+
+    const qs = new URLSearchParams({
+      page: "1",
+      q: q,
+      ...(v ? { viewerId: v._id } : {})
+    });
+
+    const res = await fetch(`/api/resources/list?${qs}`);
+    const data = await res.json();
+    setItems(data.users || []);
+    setLoading(false);
+  };
+
+  load();
+}, [q]);
+
+
 
   const search = async () => {
-    const res = await fetch(`/api/resources/list?page=1&q=${encodeURIComponent(q)}&publicOnly=true`);
+    const res = await fetch(
+  `/api/resources/list?page=1&q=${encodeURIComponent(q)}${
+    viewer ? `&viewerId=${viewer._id}` : ""
+  }`
+);
+
     const data = await res.json();
     setItems(data.users || []);
   };
 
   return (
     <div className="relative min-h-screen text-white">
-      
       <div className="fixed inset-0 -z-30">
         <ColorBends
           colors={["#3e47f4", "#06b31a", "#b46d04"]}
@@ -59,15 +75,10 @@ export default function ExplorePage() {
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="Search public resources"
+            placeholder="Search resources"
             className="flex-1 p-2 bg-white/10 rounded"
           />
-          <button
-            onClick={search}
-            className="px-4 bg-indigo-600 rounded"
-          >
-            Search
-          </button>
+          <button onClick={search} className="px-4 bg-indigo-600 rounded">Search</button>
         </div>
 
         <div className="space-y-4">
@@ -77,12 +88,32 @@ export default function ExplorePage() {
             <div className="text-gray-400">No public resources found.</div>
           ) : (
             items.map(r => (
-              <div key={r._id} className="p-4 bg-white/5 rounded cursor-pointer"
-                onClick={() => router.push(`/resources/${r._id}`)}
+              <div key={r._id}
+                   className="p-4 bg-white/5 rounded cursor-pointer"
+                   onClick={() => router.push(`/resources/${r._id}`)}
               >
                 <div className="font-semibold">{r.title}</div>
                 <div className="text-xs text-gray-300">{r.subject} • {r.tags?.join(", ")}</div>
-                <div className="text-xs text-gray-400 mt-1">by {r.owner.fullName}</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {r.isPublic ? "Public" : "Private"} • {r.owner.fullName} • Rep: {r.owner.reputation}
+                  </div>
+                {/* owner line: clicking owner name opens profile */}
+                <div className="text-xs text-gray-400 mt-1">
+                  by{" "}
+                  <span
+                    onClick={(e) => { e.stopPropagation(); router.push(`/profile/${r.owner._id}`); }}
+                    className="underline cursor-pointer"
+                  >
+                    {r.owner.fullName}
+                  </span>
+                  {" • Rep: "}
+                  <span
+                    onClick={(e) => { e.stopPropagation(); router.push(`/profile/${r.owner._id}`); }}
+                    className="font-medium cursor-pointer"
+                  >
+                    {r.owner.reputation ?? 0}
+                  </span>
+                </div>
               </div>
             ))
           )}

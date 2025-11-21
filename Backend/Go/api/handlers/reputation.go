@@ -2,13 +2,19 @@ package handlers
 
 import (
 	"backend_go/services"
+	"encoding/json"
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gofiber/fiber/v3"
 )
 
-// GET /reputation/:address
+type repChangeIn struct {
+	Mentor string `json:"mentor"`
+	Amount int64  `json:"amount"`
+}
+
 func GetReputation(c fiber.Ctx) error {
 	addr := c.Params("address")
 	if !common.IsHexAddress(addr) {
@@ -26,24 +32,27 @@ func GetReputation(c fiber.Ctx) error {
 	})
 }
 
-// POST /reputation/add
 func AddReputationTx(c fiber.Ctx) error {
 	in := new(struct {
-		PrivateKey string `json:"privateKey"`
-		Mentor     string `json:"mentor"`
-		Amount     int64  `json:"amount"`
+		Mentor string `json:"mentor"`
+		Amount int64  `json:"amount"`
 	})
 
-	if err := c.Bind().Body(in); err != nil {
+	// parse JSON body using encoding/json (BodyParser not present in this build)
+	if err := json.Unmarshal(c.Body(), in); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid json"})
 	}
-
-	if in.PrivateKey == "" || !common.IsHexAddress(in.Mentor) || in.Amount <= 0 {
+	if !common.IsHexAddress(in.Mentor) || in.Amount <= 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
 
+	opKey := os.Getenv("OPERATOR_PRIVATE_KEY")
+	if opKey == "" {
+		return c.Status(500).JSON(fiber.Map{"error": "operator key missing"})
+	}
+
 	tx, err := services.AddReputation(
-		in.PrivateKey,
+		opKey,
 		common.HexToAddress(in.Mentor),
 		big.NewInt(in.Amount),
 	)
@@ -54,24 +63,21 @@ func AddReputationTx(c fiber.Ctx) error {
 	return c.JSON(fiber.Map{"txHash": tx})
 }
 
-// POST /reputation/sub
 func SubReputationTx(c fiber.Ctx) error {
-	in := new(struct {
-		PrivateKey string `json:"privateKey"`
-		Mentor     string `json:"mentor"`
-		Amount     int64  `json:"amount"`
-	})
-
-	if err := c.Bind().Body(in); err != nil {
+	in := new(repChangeIn)
+	if err := json.Unmarshal(c.Body(), in); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid json"})
 	}
 
-	if in.PrivateKey == "" || !common.IsHexAddress(in.Mentor) || in.Amount <= 0 {
+	if !common.IsHexAddress(in.Mentor) || in.Amount <= 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "invalid payload"})
 	}
-
+	opKey := os.Getenv("OPERATOR_PRIVATE_KEY")
+	if opKey == "" {
+		return c.Status(500).JSON(fiber.Map{"error": "operator key missing"})
+	}
 	tx, err := services.SubReputation(
-		in.PrivateKey,
+		opKey,
 		common.HexToAddress(in.Mentor),
 		big.NewInt(in.Amount),
 	)
