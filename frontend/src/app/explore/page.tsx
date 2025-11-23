@@ -87,35 +87,40 @@ useEffect(() => {
           ) : items.length === 0 ? (
             <div className="text-gray-400">No public resources found.</div>
           ) : (
-            items.map(r => (
-              <div key={r._id}
-                   className="p-4 bg-white/5 rounded cursor-pointer"
-                   onClick={() => router.push(`/resources/${r._id}`)}
-              >
-                <div className="font-semibold">{r.title}</div>
-                <div className="text-xs text-gray-300">{r.subject} • {r.tags?.join(", ")}</div>
+            items.map(r => {
+              // defensive: r.owner may be null (deleted user or partial data)
+              const owner = r.owner || { _id: null, fullName: 'Unknown', reputation: 0, profileImage: null };
+              return (
+                <div key={r._id}
+                     className="p-4 bg-white/5 rounded cursor-pointer"
+                     onClick={() => router.push(`/resources/${r._id}`)}
+                >
+                  <div className="font-semibold">{r.title}</div>
+                  <div className="text-xs text-gray-300">{r.subject} • {r.tags?.join(", ")}</div>
                   <div className="text-xs text-gray-400 mt-1">
-                    {r.isPublic ? "Public" : "Private"} • {r.owner.fullName} • Rep: {r.owner.reputation}
+                    {r.isPublic ? "Public" : "Private"} • {owner.fullName} • Rep: {owner.reputation ?? 0}
                   </div>
-                {/* owner line: clicking owner name opens profile */}
-                <div className="text-xs text-gray-400 mt-1">
-                  by{" "}
-                  <span
-                    onClick={(e) => { e.stopPropagation(); router.push(`/profile/${r.owner._id}`); }}
-                    className="underline cursor-pointer"
-                  >
-                    {r.owner.fullName}
-                  </span>
-                  {" • Rep: "}
-                  <span
-                    onClick={(e) => { e.stopPropagation(); router.push(`/profile/${r.owner._id}`); }}
-                    className="font-medium cursor-pointer"
-                  >
-                    {r.owner.reputation ?? 0}
-                  </span>
+
+                  {/* owner line: clicking owner name opens profile (only if owner id exists) */}
+                  <div className="text-xs text-gray-400 mt-1">
+                    by{" "}
+                    <span
+                      onClick={(e) => { e.stopPropagation(); if (owner._id) router.push(`/profile/${owner._id}`); }}
+                      className={owner._id ? "underline cursor-pointer" : "text-gray-500"}
+                    >
+                      {owner.fullName}
+                    </span>
+                    {" • Rep: "}
+                    <span
+                      onClick={(e) => { e.stopPropagation(); if (owner._id) router.push(`/profile/${owner._id}`); }}
+                      className={owner._id ? "font-medium cursor-pointer" : "font-medium text-gray-300"}
+                    >
+                      {owner.reputation ?? 0}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

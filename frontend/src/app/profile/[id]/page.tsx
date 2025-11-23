@@ -86,6 +86,18 @@ export default function PublicProfile() {
 
         <h2 className="mt-4 text-2xl font-bold">{profile.fullName}</h2>
         <p className="text-gray-300 text-sm">{profile.program} — {profile.major}</p>
+
+        {/* tags */}
+        {Array.isArray(profile.tags) && profile.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {profile.tags.map((t: string) => (
+              <span key={t} className="text-xs bg-white/6 px-2 py-1 rounded text-gray-100">
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
+
           <div className="mt-4 flex items-center gap-4">
             <div className="flex items-center gap-3 mt-1">
               <VoteBox

@@ -45,7 +45,7 @@ export default function Navbar({ user, onLoginClick }: any) {
             onClick={() => router.push('/explore')}
             className="px-4 py-2 bg-transparent-600 rounded-lg text-sm font-semibold hover:bg-indigo-500 transition"
           >
-            Explore
+            Materials
           </button>
           <button
             onClick={() => router.push('/resources/upload')}

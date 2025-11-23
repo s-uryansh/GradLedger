@@ -74,22 +74,22 @@ export default function ResourcesManagePage() {
     }
   };
 
-  const deleteResource = async (resourceId: string) => {
-    if (!confirm("Delete this resource? This cannot be undone.")) return;
-    try {
-      const res = await fetch("/api/resources/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resourceId, ownerId: viewer._id }),
-      });
-      const data = await res.json();
-      if (!data?.success) throw new Error(data?.error || "Failed");
-      toast.success("Deleted");
-      setResources((prev) => prev.filter(r => r._id !== resourceId));
-    } catch (err: any) {
-      toast.error(err.message || "Error");
-    }
-  };
+  // const deleteResource = async (resourceId: string) => {
+  //   if (!confirm("Delete this resource? This cannot be undone.")) return;
+  //   try {
+  //     const res = await fetch("/api/resources/delete", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ resourceId, ownerId: viewer._id }),
+  //     });
+  //     const data = await res.json();
+  //     if (!data?.success) throw new Error(data?.error || "Failed");
+  //     toast.success("Deleted");
+  //     setResources((prev) => prev.filter(r => r._id !== resourceId));
+  //   } catch (err: any) {
+  //     toast.error(err.message || "Error");
+  //   }
+  // };
 
   const onModalUpdate = async () => {
     setModalOpen(false);
@@ -129,7 +129,7 @@ export default function ResourcesManagePage() {
                 onOpen={openResource}
                 onManageRequests={() => openManageRequests(r)}
                 onToggle={toggleVisibility}
-                onDelete={deleteResource}
+                // onDelete={deleteResource}
               />
             ))}
           </div>

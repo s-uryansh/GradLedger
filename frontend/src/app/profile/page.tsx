@@ -176,6 +176,18 @@ export default function ProfilePage() {
             <h3 className="mt-4 text-xl font-bold">{user.fullName}</h3>
             <p className="text-gray-400">{user.rollNumber}</p>
             <p className="text-gray-400">{user.program} — {user.major}</p>
+
+          {/* tags */}
+          {Array.isArray(user.tags) && user.tags.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2 w-full justify-center">
+              {user.tags.map((t: string) => (
+                <span key={t} className="text-xs bg-white/6 px-2 py-1 rounded text-gray-100">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+
           </div>
 
           <div className="mt-6 space-y-2 text-sm text-gray-300 text-left">

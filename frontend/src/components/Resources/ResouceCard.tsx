@@ -7,13 +7,13 @@ export default function ResourceCard({
   onOpen,
   onManageRequests,
   onToggle,
-  onDelete,
+  // onDelete,
 }: {
   resource: any;
   onOpen: (id: string) => void;
   onManageRequests: (r: any) => void;
   onToggle: (id: string, makePublic: boolean) => void;
-  onDelete: (id: string) => void;
+  // onDelete: (id: string) => void;
 }) {
   return (
     <div className="bg-white/5 p-4 rounded-lg flex flex-col gap-3">
@@ -31,7 +31,7 @@ export default function ResourceCard({
         <button onClick={() => onOpen(resource._id)} className="px-3 py-1 bg-indigo-600 rounded text-white">View / Open</button>
         <button onClick={() => onManageRequests(resource)} className="px-3 py-1 bg-white/8 rounded text-white">Manage Requests ({resource.pendingRequests?.length || 0})</button>
         <button onClick={() => onToggle(resource._id, !resource.isPublic)} className="px-3 py-1 bg-amber-600 rounded text-white">{resource.isPublic ? "Make Private" : "Make Public"}</button>
-        <button onClick={() => onDelete(resource._id)} className="ml-auto px-3 py-1 bg-red-600 rounded text-white">Delete</button>
+        {/* <button onClick={() => onDelete(resource._id)} className="ml-auto px-3 py-1 bg-red-600 rounded text-white">Delete</button> */}
       </div>
     </div>
   );
